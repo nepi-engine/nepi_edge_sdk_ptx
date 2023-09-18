@@ -14,8 +14,11 @@ namespace Numurus
 class IqrRosPanTiltNode : public PTXNode
 {
 public:
-  IqrRosPanTiltNode(int modbus_id, const std::string &dev_fs_path);
+  IqrRosPanTiltNode();
   ~IqrRosPanTiltNode();
+
+  // PTXNode overrides
+  void retrieveParams() override;
 
   // PTXNode pure virtual functions must be implemented
   // PTXInterface requires these (and that they are public)
@@ -27,6 +30,7 @@ public:
   void reportPanTiltIdentity() const;
 
 private:
+  NodeParam<std::string> device_path; // TODO: Wrap this in an "autostartable" interface... used by generic_autolauncher
   IQR::PanTiltDriver *driver = nullptr;
 };
 

@@ -4,6 +4,9 @@
 
 #define NODE_NAME "iqr_pan_tilt"
 
+#define FIXED_MODBUS_ID                 1
+#define DEFAULT_DEVICE_PATH             "/dev/iqr_pan_tilt"
+
 #define DEFAULT_FRAME_ID                "iqr_pan_tilt_frame"
 #define DEFAULT_YAW_JOINT_NAME          "iqr_pan_tilt_yaw_joint"
 #define DEFAULT_PITCH_JOINT_NAME        "iqr_pan_tilt_pitch_joint"
@@ -20,10 +23,9 @@
 namespace Numurus
 {
 
-IqrRosPanTiltNode::IqrRosPanTiltNode(int modbus_id, const std::string &dev_fs_path)
+IqrRosPanTiltNode::IqrRosPanTiltNode() :
+    device_path{"device_path", DEFAULT_DEVICE_PATH, this}
 {
-    driver = new IQR::PanTiltDriver(modbus_id, dev_fs_path);
-
     // TODO: Ideally the ptx_interface can be dynamically constructed by PTXNode constructor, but how to pass these specific defaults
     // without creating a huge cumbersome constructor for PTXNode. Not obvious how to initialize a PTXSettings object before PTXNode constructor
     // gets called
@@ -50,6 +52,18 @@ IqrRosPanTiltNode::~IqrRosPanTiltNode()
   }
 
   // ptx_interface handled by parent PTXNode destructor
+}
+
+void IqrRosPanTiltNode::retrieveParams()
+{
+  // Call the parent method
+  PTXNode::retrieveParams();
+
+  // Do it again here so that the warnings will be logged, but already retrieved in constructor
+  device_path.retrieve();
+  // Now we can launch the driver
+  const std::string dev_path = device_path;
+  driver = new IQR::PanTiltDriver(FIXED_MODBUS_ID, dev_path);
 }
 
 void IqrRosPanTiltNode::reportPanTiltIdentity() const
@@ -163,8 +177,8 @@ int main(int argc, char *argv[])
 {
     ros::init(argc, argv, NODE_NAME);
 	ROS_INFO("Starting the %s node", NODE_NAME);
-    
-    Numurus::IqrRosPanTiltNode pt_node(1, "/dev/iqr_pan_tilt");
+        
+    Numurus::IqrRosPanTiltNode pt_node;
     pt_node.run();
 }
 
