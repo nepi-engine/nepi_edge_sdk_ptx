@@ -22,7 +22,9 @@ public:
 
   // PTXNode pure virtual functions must be implemented
   // PTXInterface requires these (and that they are public)
-  void gotoPosition(float yaw_deg, float pitch_deg, float speed);
+  void moveYaw(PTX_DIRECTION direction, float speed, float time_s = 1000000.0f);
+  void movePitch(PTX_DIRECTION direction, float speed, float time_s = 1000000.0f);
+  void gotoPosition(float yaw_deg, float pitch_deg, float speed, float move_timeout_s = 1000000.0f);
   void getCurrentPosition(float &yaw_deg_out, float &pitch_deg_out);
   void getStatus(PTXStatus &status_out);
   bool inMotion(float &yaw_goal_out, float &pitch_goal_out);

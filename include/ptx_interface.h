@@ -30,10 +30,14 @@
 
 #include <std_msgs/Float32.h>
 #include <std_msgs/Empty.h>
+#include <std_msgs/UInt8.h>
 #include <sensor_msgs/JointState.h>
 #include <tf/transform_broadcaster.h>
 #include "nepi_ros_interfaces/PanTiltPosition.h"
 #include "nepi_ros_interfaces/PanTiltLimits.h"
+#include "nepi_ros_interfaces/SingleAxisTimedMove.h"
+#include "nepi_ros_interfaces/AbsolutePanTiltWaypoint.h"
+#include "nepi_ros_interfaces/PTXCapabilitiesQuery.h"
 
 namespace Numurus
 {
@@ -51,6 +55,14 @@ struct PTXSettings
     float min_speed_driver_units;
     float max_speed_driver_units;
     float speed_ratio;
+};
+
+struct PTXCapabilities
+{
+    bool has_absolute_positioning;
+    bool has_speed_control;
+    bool has_homing;
+    bool has_waypoints;
 };
 
 struct PTXStatus
@@ -72,12 +84,20 @@ struct PTXStatus
     std::vector<std::string> driver_errors;
 };
 
+struct PTXWaypoint
+{
+    static constexpr float INVALID_WAYPOINT = -1000.0f;
+    float yaw_deg = INVALID_WAYPOINT; // Initialized invalid
+    float pitch_deg = INVALID_WAYPOINT; // Initialized invalid
+};
+
 class PTXNode; // forward declaration
 
 class PTXInterface : public SDKInterface
 {
 public:
-    PTXInterface(PTXNode *parent, ros::NodeHandle *parent_pub_nh, ros::NodeHandle *parent_priv_nh, const PTXSettings &default_settings);
+    PTXInterface(PTXNode *parent, ros::NodeHandle *parent_pub_nh, ros::NodeHandle *parent_priv_nh, 
+                 const PTXSettings &default_settings, const PTXCapabilities &default_capabilities);
     PTXInterface() = delete; // No default constructor available
 
     virtual ~PTXInterface();
@@ -86,6 +106,7 @@ public:
 	void retrieveParams() override;
 	void initSubscribers() override;
 	void initPublishers() override;
+    void initServices() override;
 
     bool positionIsValid(float yaw_deg, float pitch_deg) const;
     inline uint16_t currentSpeedRatioToDriverUnits() const 
@@ -103,6 +124,16 @@ public:
     void jogToPitchRatioHandler(const std_msgs::Float32::ConstPtr &msg);  
     void stopMovingHandler(const std_msgs::Empty::ConstPtr &msg);
 
+    bool capabilitiesQueryHandler(nepi_ros_interfaces::PTXCapabilitiesQuery::Request &req, 
+                                  nepi_ros_interfaces::PTXCapabilitiesQuery::Response &res);
+
+    void jogTimedYaw(const nepi_ros_interfaces::SingleAxisTimedMove::ConstPtr &msg);
+    void jogTimedPitch(const nepi_ros_interfaces::SingleAxisTimedMove::ConstPtr &msg);
+    void setHomePositionHere(const std_msgs::Empty::ConstPtr &msg);
+    void setWaypoint(const nepi_ros_interfaces::AbsolutePanTiltWaypoint::ConstPtr &msg);
+    void setWaypointHere(const std_msgs::UInt8::ConstPtr &msg);
+    void gotoWaypoint(const std_msgs::UInt8::ConstPtr &msg);
+
 private:
     SDKNode::NodeParam<std::string> frame_id;
 	SDKNode::NodeParam<std::string> yaw_joint_name;
@@ -119,6 +150,11 @@ private:
     SDKNode::NodeParam<float> max_pitch_softstop_deg;
     SDKNode::NodeParam<float> speed_ratio;
 
+    SDKNode::NodeParam<bool> has_absolute_positioning;
+    SDKNode::NodeParam<bool> has_speed_control;
+    SDKNode::NodeParam<bool> has_homing;
+    SDKNode::NodeParam<bool> has_waypoints;
+
     float max_speed_driver_units;
     float min_speed_driver_units;
 
@@ -126,6 +162,10 @@ private:
     ros::Publisher statusPub;
         
     sensor_msgs::JointState joint_state;
+    nepi_ros_interfaces::PTXCapabilitiesQuery::Response ptx_caps_query_response;
+
+    static constexpr size_t WAYPOINT_COUNT = 256;
+    PTXWaypoint waypoints[WAYPOINT_COUNT];
 };
 
 }

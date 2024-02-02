@@ -13,12 +13,12 @@
 #define DEFAULT_SPEED_RATIO             0.5f
 
 // Fixed values per driver/documentation
-#define MIN_YAW_HARDSTOP_DEG            -60.0f;
-#define MAX_YAW_HARDSTOP_DEG            60.0f;
-#define MIN_PITCH_HARDSTOP_DEG          -60.0f;
-#define MAX_PITCH_HARDSTOP_DEG          60.0f;
-#define MIN_SPEED_DEG_PER_S             1;
-#define MAX_SPEED_DEG_PER_S             30;
+#define MIN_YAW_HARDSTOP_DEG            -60.0f
+#define MAX_YAW_HARDSTOP_DEG            60.0f
+#define MIN_PITCH_HARDSTOP_DEG          -60.0f
+#define MAX_PITCH_HARDSTOP_DEG          60.0f
+#define MIN_SPEED_DEG_PER_S             1
+#define MAX_SPEED_DEG_PER_S             30
 
 namespace Numurus
 {
@@ -40,7 +40,14 @@ IqrRosPanTiltNode::IqrRosPanTiltNode() :
     settings.min_speed_driver_units = MIN_SPEED_DEG_PER_S;
     settings.max_speed_driver_units = MAX_SPEED_DEG_PER_S;
     settings.speed_ratio = DEFAULT_SPEED_RATIO;
-    ptx_interface = new PTXInterface(this, &n, &n_priv, settings);
+
+    PTXCapabilities capabilities;
+    capabilities.has_absolute_positioning = true;
+    capabilities.has_speed_control = true;
+    capabilities.has_homing = true;
+    capabilities.has_waypoints = true;
+
+    ptx_interface = new PTXInterface(this, &n, &n_priv, settings, capabilities);
 }
 
 IqrRosPanTiltNode::~IqrRosPanTiltNode()
@@ -86,9 +93,27 @@ void IqrRosPanTiltNode::reportPanTiltIdentity() const
   }    
 }
 
-void IqrRosPanTiltNode::gotoPosition(float yaw_deg, float pitch_deg, float speed_driver_units)
+void IqrRosPanTiltNode::moveYaw(PTX_DIRECTION direction, float speed, float time_s)
+{
+    const float yaw_termination_deg = (direction == PTX_DIRECTION_POSITIVE)? MAX_YAW_HARDSTOP_DEG - 1.0f : MIN_YAW_HARDSTOP_DEG + 1.0f;
+    float dummy, current_pitch_deg;
+    getCurrentPosition(dummy, current_pitch_deg);
+    gotoPosition(yaw_termination_deg, current_pitch_deg, speed, time_s);
+}
+
+void IqrRosPanTiltNode::movePitch(PTX_DIRECTION direction, float speed, float time_s)
+{
+    const float pitch_termination_deg = (direction == PTX_DIRECTION_POSITIVE)? MAX_PITCH_HARDSTOP_DEG - 1.0f : MIN_PITCH_HARDSTOP_DEG + 1.0f;
+    float dummy, current_yaw_deg;
+    getCurrentPosition(current_yaw_deg, dummy);
+    gotoPosition(current_yaw_deg, pitch_termination_deg, speed, time_s);
+}
+
+void IqrRosPanTiltNode::gotoPosition(float yaw_deg, float pitch_deg, float speed_driver_units, float move_timeout_s)
 {
     driver->setPose(yaw_deg, pitch_deg, speed_driver_units);
+    move_stop_timer.setPeriod(ros::Duration(move_timeout_s), true);
+    move_stop_timer.start();
 }
 
 void IqrRosPanTiltNode::getCurrentPosition(float &yaw_deg_out, float &pitch_deg_out)
