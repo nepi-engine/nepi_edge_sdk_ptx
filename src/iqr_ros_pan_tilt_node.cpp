@@ -12,6 +12,9 @@
 #define DEFAULT_PITCH_JOINT_NAME        "iqr_pan_tilt_pitch_joint"
 #define DEFAULT_SPEED_RATIO             0.5f
 
+#define DEFAULT_REVERSE_YAW_CONTROL     true
+#define DEFAULT_REVERSE_PITCH_CONTROL   false
+
 // Fixed values per driver/documentation
 #define MIN_YAW_HARDSTOP_DEG            -60.0f
 #define MAX_YAW_HARDSTOP_DEG            60.0f
@@ -40,6 +43,8 @@ IqrRosPanTiltNode::IqrRosPanTiltNode() :
     settings.min_speed_driver_units = MIN_SPEED_DEG_PER_S;
     settings.max_speed_driver_units = MAX_SPEED_DEG_PER_S;
     settings.speed_ratio = DEFAULT_SPEED_RATIO;
+    settings.reverse_yaw_control = DEFAULT_REVERSE_YAW_CONTROL;
+    settings.reverse_pitch_control = DEFAULT_REVERSE_PITCH_CONTROL;
 
     PTXCapabilities capabilities;
     capabilities.has_absolute_positioning = true;

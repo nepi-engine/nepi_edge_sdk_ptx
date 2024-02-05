@@ -47,6 +47,8 @@ PTXInterface::PTXInterface(PTXNode *parent, ros::NodeHandle *parent_pub_nh, ros:
     min_pitch_softstop_deg{"ptx/limits/min_pitch_softstop_deg", default_settings.min_pitch_hardstop_deg, parent},
     max_pitch_softstop_deg{"ptx/limits/max_pitch_softstop_deg", default_settings.max_pitch_hardstop_deg, parent},
     speed_ratio{"ptx/speed_ratio", default_settings.speed_ratio, parent},
+    reverse_yaw_control{"ptx/reverse_yaw_control", default_settings.reverse_yaw_control, parent},
+    reverse_pitch_control{"ptx/reverse_pitch_control", default_settings.reverse_pitch_control, parent},
     has_absolute_positioning{"ptx/capabilities/has_absolute_positioning", default_capabilities.has_absolute_positioning, parent},
     has_speed_control{"ptx/capabilities/has_speed_control", default_capabilities.has_speed_control, parent},
     has_homing{"ptx/capabilities/has_homing", default_capabilities.has_homing, parent},
@@ -84,6 +86,8 @@ void PTXInterface::retrieveParams()
     min_pitch_softstop_deg.retrieve();
     max_pitch_softstop_deg.retrieve();
     speed_ratio.retrieve();
+    reverse_yaw_control.retrieve();
+    reverse_pitch_control.retrieve();
 
     has_absolute_positioning.retrieve();
     has_speed_control.retrieve();
@@ -132,6 +136,8 @@ void PTXInterface::initSubscribers()
     subscribers.push_back(_parent_priv_nh->subscribe("ptx/stop_moving", 3, &PTXInterface::stopMovingHandler, this));
     subscribers.push_back(_parent_priv_nh->subscribe("ptx/jog_timed_yaw", 3, &PTXInterface::jogTimedYaw, this));
     subscribers.push_back(_parent_priv_nh->subscribe("ptx/jog_timed_pitch", 3, &PTXInterface::jogTimedPitch, this));
+    subscribers.push_back(_parent_priv_nh->subscribe("ptx/reverse_yaw_control", 3, &PTXInterface::reverseYawControlHandler, this));
+    subscribers.push_back(_parent_priv_nh->subscribe("ptx/reverse_pitch_control", 3, &PTXInterface::reversePitchControlHandler, this));
 }
 
 void PTXInterface::initPublishers()
@@ -187,6 +193,9 @@ void PTXInterface::publishJointStateAndStatus()
     status_msg.hw_version = status.hw_version;
     status_msg.sw_version = status.sw_version;
     status_msg.speed_ratio = (float)(status.speed_driver_units - min_speed_driver_units) / (max_speed_driver_units - min_speed_driver_units);
+
+    status_msg.reverse_yaw_control = reverse_yaw_control;
+    status_msg.reverse_pitch_control = reverse_pitch_control;
 
     status_msg.yaw_home_pos_deg = yaw_home_pos_deg;
     status_msg.yaw_goal_deg = status.yaw_goal;
@@ -328,7 +337,9 @@ void PTXInterface::jogToYawRatioHandler(const std_msgs::Float32::ConstPtr &msg)
         return;
     }
 
-    const float ratio = msg->data;
+    const bool reverse = reverse_yaw_control;
+    const float ratio = (reverse == false)? 
+        msg->data : (1.0f - msg->data);
     const float min_yaw = min_yaw_softstop_deg;
     const float max_yaw = max_yaw_softstop_deg;
     const float yaw_goal = (ratio * max_yaw) + (( 1.0f - ratio ) *  min_yaw);
@@ -354,7 +365,10 @@ void PTXInterface::jogToPitchRatioHandler(const std_msgs::Float32::ConstPtr &msg
         return;
     }
 
-    const float ratio = msg->data;
+    const bool reverse = reverse_pitch_control;
+    const float ratio = (reverse == false)? 
+        msg->data : (1.0f - msg->data);
+
     const float min_pitch = min_pitch_softstop_deg;
     const float max_pitch = max_pitch_softstop_deg;
     const float pitch_goal = (ratio * max_pitch) + (( 1.0f - ratio ) *  min_pitch);
@@ -378,8 +392,9 @@ void PTXInterface::jogTimedYaw(const nepi_ros_interfaces::SingleAxisTimedMove::C
         return;
     }
 
-    const PTXNode::PTX_DIRECTION direction = (msg->direction == msg->DIRECTION_POSITIVE)? 
-        PTXNode::PTX_DIRECTION_POSITIVE : PTXNode::PTX_DIRECTION_NEGATIVE;
+    const bool reverse = reverse_yaw_control;
+    const PTXNode::PTX_DIRECTION direction = (reverse == true)? msg->direction : (-1 * msg->direction);
+
     const float speed = currentSpeedRatioToDriverUnits();
     const float duration_s = (msg->duration_s < 0.0)? 1000000.0f : msg->duration_s;
 
@@ -394,12 +409,25 @@ void PTXInterface::jogTimedPitch(const nepi_ros_interfaces::SingleAxisTimedMove:
         return;
     }
 
-    const PTXNode::PTX_DIRECTION direction = (msg->direction == msg->DIRECTION_POSITIVE)? 
-        PTXNode::PTX_DIRECTION_POSITIVE : PTXNode::PTX_DIRECTION_NEGATIVE;
+    const bool reverse = reverse_pitch_control;
+    const PTXNode::PTX_DIRECTION direction = (reverse == true)? msg->direction : (-1 * msg->direction);
+
     const float speed = currentSpeedRatioToDriverUnits();
     const float duration_s = (msg->duration_s < 0.0)? 1000000.0f : msg->duration_s;
 
     static_cast<PTXNode*>(_parent_node)->movePitch(direction, speed, duration_s);
+}
+
+void PTXInterface::reverseYawControlHandler(const std_msgs::Bool::ConstPtr &msg)
+{
+    ROS_INFO("Updating reverse yaw control");
+    reverse_yaw_control = msg->data;
+}
+
+void PTXInterface::reversePitchControlHandler(const std_msgs::Bool::ConstPtr &msg)
+{
+    ROS_INFO("Updating reverse pitch control");
+    reverse_pitch_control = msg->data;
 }
 
 void PTXInterface::setHomePositionHere(const std_msgs::Empty::ConstPtr &msg)

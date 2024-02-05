@@ -31,6 +31,7 @@
 #include <std_msgs/Float32.h>
 #include <std_msgs/Empty.h>
 #include <std_msgs/UInt8.h>
+#include <std_msgs/Bool.h>
 #include <sensor_msgs/JointState.h>
 #include <tf/transform_broadcaster.h>
 #include "nepi_ros_interfaces/PanTiltPosition.h"
@@ -55,6 +56,8 @@ struct PTXSettings
     float min_speed_driver_units;
     float max_speed_driver_units;
     float speed_ratio;
+    bool reverse_yaw_control;
+    bool reverse_pitch_control;
 };
 
 struct PTXCapabilities
@@ -129,6 +132,8 @@ public:
 
     void jogTimedYaw(const nepi_ros_interfaces::SingleAxisTimedMove::ConstPtr &msg);
     void jogTimedPitch(const nepi_ros_interfaces::SingleAxisTimedMove::ConstPtr &msg);
+    void reverseYawControlHandler(const std_msgs::Bool::ConstPtr &msg);
+    void reversePitchControlHandler(const std_msgs::Bool::ConstPtr &msg);
     void setHomePositionHere(const std_msgs::Empty::ConstPtr &msg);
     void setWaypoint(const nepi_ros_interfaces::AbsolutePanTiltWaypoint::ConstPtr &msg);
     void setWaypointHere(const std_msgs::UInt8::ConstPtr &msg);
@@ -149,6 +154,8 @@ private:
     SDKNode::NodeParam<float> min_pitch_softstop_deg;
     SDKNode::NodeParam<float> max_pitch_softstop_deg;
     SDKNode::NodeParam<float> speed_ratio;
+    SDKNode::NodeParam<bool> reverse_yaw_control;
+    SDKNode::NodeParam<bool> reverse_pitch_control;
 
     SDKNode::NodeParam<bool> has_absolute_positioning;
     SDKNode::NodeParam<bool> has_speed_control;

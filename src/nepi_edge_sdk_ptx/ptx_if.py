@@ -25,7 +25,7 @@
 #
 
 import rospy
-from std_msgs.msg import UInt8, Float32, Empty
+from std_msgs.msg import UInt8, Float32, Empty, Bool
 from sensor_msgs.msg import JointState
 from nepi_ros_interfaces.msg import PanTiltStatus, PanTiltLimits, PanTiltPosition, SingleAxisTimedMove, AbsolutePanTiltWaypoint
 from nepi_ros_interfaces.srv import PTXCapabilitiesQuery, PTXCapabilitiesQueryResponse
@@ -56,6 +56,8 @@ class ROSPTXActuatorIF:
         self.frame_id = rospy.get_param('~ptx/frame_id', default_settings['frame_id'])
         self.yaw_joint_name = rospy.get_param("~ptx/yaw_joint_name", default_settings['yaw_joint_name'])
         self.pitch_joint_name = rospy.get_param("~ptx/pitch_joint_name", default_settings['pitch_joint_name'])
+        self.reverse_yaw_control = rospy.get_param("~ptx/reverse_yaw_control", default_settings['reverse_yaw_control'])
+        self.reverse_pitch_control = rospy.get_param("~ptx/reverse_pitch_control", default_settings['reverse_pitch_control'])
 
         # Set up status message static values
         self.status_msg = PanTiltStatus()
@@ -90,6 +92,10 @@ class ROSPTXActuatorIF:
         rospy.Subscriber('~ptx/jog_timed_yaw', SingleAxisTimedMove, self.jogTimedYawHandler, queue_size=1)
         self.movePitchCb = movePitchCb
         rospy.Subscriber('~ptx/jog_timed_pitch', SingleAxisTimedMove, self.jogTimedPitchHandler, queue_size=1)
+
+        # Reverse controls setup
+        rospy.Subscriber('~ptx/reverse_yaw_control', Bool, self.setReverseYawControl, queue_size=1)
+        rospy.Subscriber('~ptx/reverse_pitch_control', Bool, self.setReversePitchControl, queue_size=1)
 
         # Speed setup if available
         self.setSpeedCb = setSpeedCb
@@ -225,6 +231,8 @@ class ROSPTXActuatorIF:
         self.status_msg.header.seq += 1
         self.status_msg.header.stamp = rospy.Time.now()
         
+        self.status_msg.reverse_yaw_control = self.reverse_yaw_control
+        self.status_msg.reverse_pitch_control = self.reverse_pitch_control
         self.status_msg.yaw_goal_deg = self.yaw_goal_deg
         self.status_msg.yaw_home_pos_deg = self.yaw_home_pos_deg
         self.status_msg.yaw_min_softstop_deg = self.min_yaw_softstop_deg
@@ -312,7 +320,7 @@ class ROSPTXActuatorIF:
         rospy.loginfo("Driving to (%0.2f, %0.2f) by request", msg.yaw_deg, msg.pitch_deg)
             
     def jogToYawRatioHandler(self, msg):
-        ratio = msg.data
+        ratio = msg.data if self.reverse_yaw_control is False else (1.0 - msg.data)
         if (ratio < 0.0 or ratio > 1.0):
             rospy.logwarn("Invalid yaw position ratio %0.2f... ignoring", ratio)
             return
@@ -322,7 +330,7 @@ class ROSPTXActuatorIF:
         self.gotoPositionCb(yaw_deg = self.yaw_goal_deg, pitch_deg = pitch_now_deg)
 
     def jogToPitchRatioHandler(self, msg):
-        ratio = msg.data
+        ratio = msg.data if self.reverse_pitch_control is False else (1.0 - msg.data)
         if (ratio < 0.0 or ratio > 1.0):
             rospy.logwarn("Invalid pitch position ratio %0.2f... ignoring", ratio)
             return
@@ -336,18 +344,26 @@ class ROSPTXActuatorIF:
         rospy.loginfo("Stopping motion by request")
 
     def jogTimedYawHandler(self, msg):
-        direction = self.PTX_DIRECTION_POSITIVE if (msg.direction == msg.DIRECTION_POSITIVE) else self.PTX_DIRECTION_NEGATIVE
+        direction = msg.direction if self.reverse_yaw_control is False else (-1 * msg.direction)
         duration = 1000000.0 if (msg.duration_s < 0.0) else msg.duration_s
 
         self.moveYawCb(direction,  duration)
         rospy.loginfo("Jogging yaw")
 
     def jogTimedPitchHandler(self, msg):
-        direction = self.PTX_DIRECTION_POSITIVE if (msg.direction == msg.DIRECTION_POSITIVE) else self.PTX_DIRECTION_NEGATIVE
+        direction = msg.direction if self.reverse_pitch_control is False else (-1 * msg.direction)
         duration = 1000000.0 if (msg.duration_s < 0.0) else msg.duration_s
 
         self.movePitchCb(direction, duration)
         rospy.loginfo("Jogging pitch")
+
+    def setReverseYawControl(self, msg):
+        self.reverse_yaw_control = msg.data
+        rospy.loginfo("Set yaw control to reverse=" + str(self.reverse_yaw_control))
+
+    def setReversePitchControl(self, msg):
+        self.reverse_pitch_control = msg.data
+        rospy.loginfo("Set pitch control to reverse=" + str(self.reverse_pitch_control))
 
     def setHomePositionHereHandler(self, _):
         if self.setHomePositionHereCb is not None:
