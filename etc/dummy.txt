@@ -1,1 +1,0 @@
-# Just a placeholder file to ensure that git maintains this directory

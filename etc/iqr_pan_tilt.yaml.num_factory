@@ -1,0 +1,27 @@
+device_path: /dev/iqr_pan_tilt
+display_name: iqr_pan_tilt
+ptx:
+  capabilities:
+    has_absolute_positioning: true
+    has_homing: true
+    has_speed_control: true
+    has_waypoints: true
+  frame_id: iqr_pan_tilt_frame
+  home_position:
+    pitch_deg: 0.0
+    yaw_deg: 0.0
+  limits:
+    max_pitch_hardstop_deg: 60.0
+    max_pitch_softstop_deg: 60.0
+    max_yaw_hardstop_deg: 60.0
+    max_yaw_softstop_deg: 60.0
+    min_pitch_hardstop_deg: -60.0
+    min_pitch_softstop_deg: -60.0
+    min_yaw_hardstop_deg: -60.0
+    min_yaw_softstop_deg: -60.0
+  pitch_joint_name: iqr_pan_tilt_pitch_joint
+  reverse_pitch_control: false
+  reverse_yaw_control: true
+  speed_ratio: 0.5
+  status_update_rate_hz: 50.0
+  yaw_joint_name: iqr_pan_tilt_yaw_joint

@@ -30,7 +30,7 @@ namespace Numurus
 {
 
 PTXNode::PTXNode() :
-    status_update_rate_hz{"status_update_rate_hz", DEFAULT_STATUS_UPDATE_RATE_HZ, this}
+    status_update_rate_hz{"ptx/status_update_rate_hz", DEFAULT_STATUS_UPDATE_RATE_HZ, this}
 {
     // Initialize the jog stop timer
     move_stop_timer = n.createTimer(ros::Duration(1000000.0), &PTXNode::stopMovingTimerCb, this, true);
