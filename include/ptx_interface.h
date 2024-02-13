@@ -33,6 +33,7 @@
 #include <std_msgs/UInt8.h>
 #include <std_msgs/Bool.h>
 #include <sensor_msgs/JointState.h>
+#include <nav_msgs/Odometry.h>
 #include <tf/transform_broadcaster.h>
 #include "nepi_ros_interfaces/PanTiltPosition.h"
 #include "nepi_ros_interfaces/PanTiltLimits.h"
@@ -166,9 +167,11 @@ private:
     float min_speed_driver_units;
 
     ros::Publisher jointPub;
+    ros::Publisher odomPub;
     ros::Publisher statusPub;
         
     sensor_msgs::JointState joint_state;
+    nav_msgs::Odometry odometry;
     nepi_ros_interfaces::PTXCapabilitiesQuery::Response ptx_caps_query_response;
 
     static constexpr size_t WAYPOINT_COUNT = 256;

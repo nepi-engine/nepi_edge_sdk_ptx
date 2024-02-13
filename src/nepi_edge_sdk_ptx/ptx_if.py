@@ -27,8 +27,11 @@
 import rospy
 from std_msgs.msg import UInt8, Float32, Empty, Bool
 from sensor_msgs.msg import JointState
+from nav_msgs.msg import Odometry
 from nepi_ros_interfaces.msg import PanTiltStatus, PanTiltLimits, PanTiltPosition, SingleAxisTimedMove, AbsolutePanTiltWaypoint
 from nepi_ros_interfaces.srv import PTXCapabilitiesQuery, PTXCapabilitiesQueryResponse
+
+from tf.transformations import quaternion_from_euler
 
 class ROSPTXActuatorIF:
     PTX_DIRECTION_POSITIVE = 1
@@ -59,18 +62,23 @@ class ROSPTXActuatorIF:
         self.pitch_joint_name = rospy.get_param("~ptx/pitch_joint_name", default_settings['pitch_joint_name'])
         self.reverse_yaw_control = rospy.get_param("~ptx/reverse_yaw_control", default_settings['reverse_yaw_control'])
         self.reverse_pitch_control = rospy.get_param("~ptx/reverse_pitch_control", default_settings['reverse_pitch_control'])
-
+        
         # Set up status message static values
         self.status_msg = PanTiltStatus()
-        self.status_msg.header.frame_id = rospy.get_param('~ptx/frame_id', default_settings['frame_id'])
+        self.status_msg.header.frame_id = self.frame_id
         self.status_msg.serial_num = serial_num
         self.status_msg.hw_version = hw_version
         self.status_msg.sw_version = sw_version
 
-        # And joint state status values
+        # And joint state status static values
         self.joint_state_msg = JointState()
         # Skip the header -- we just copy it from the status message each time
         self.joint_state_msg.name = (self.yaw_joint_name, self.pitch_joint_name)
+
+        # And odom static values
+        self.odom_msg = Odometry()
+        self.odom_msg.header.frame_id = self.name + '_fixed_frame'
+        self.odom_msg.child_frame_id = self.name + '_rotating_frame'
         
         # Gather capabilities - Config file takes precedence over parent-supplied defaults
         self.capabilities_report = PTXCapabilitiesQueryResponse()
@@ -151,6 +159,9 @@ class ROSPTXActuatorIF:
 
             # Joint state publisher
             self.joint_pub = rospy.Publisher('/joint_states', JointState, queue_size=10)
+
+            # Odometry publisher
+            self.odom_pub = rospy.Publisher('~ptx/odometry', Odometry, queue_size=10)
         
         else:
             self.max_yaw_hardstop_deg = 0.0
@@ -165,6 +176,7 @@ class ROSPTXActuatorIF:
             self.min_pitch_softstop_deg = 0.0
 
             self.joint_pub = None
+            self.odom_pub = None
 
         # Hardstop is not adjustable, so just set the status message values once here
         self.status_msg.yaw_min_hardstop_deg = self.min_yaw_hardstop_deg
@@ -262,14 +274,21 @@ class ROSPTXActuatorIF:
         #self.status_msg.error_msgs = ??? # TODO
         self.status_pub.publish(self.status_msg)
 
+        yaw_rad = 0.01745329 * self.status_msg.yaw_now_deg
+        pitch_rad = 0.01745329 * self.status_msg.pitch_now_deg
+
         # And joint state if appropriate
         if self.joint_pub is not None:
-            yaw_rad = 0.01745329 * self.status.yaw_now_deg
-            pitch_rad = 0.01745329 * self.status.pitch_now_deg
             self.joint_state_msg.header = self.status_msg.header
             self.joint_state_msg.position[0] = yaw_rad
             self.joint_state_msg.position[1] = pitch_rad
             self.joint_pub.publish(self.joint_state_msg)
+
+        if self.odom_pub is not None:
+            self.odom_msg.header.seq = self.status_msg.header.seq
+            self.odom_msg.header.stamp = self.status_msg.header.stamp
+            self.odom_msg.pose.pose.orientation = quaternion_from_euler(0.0, pitch_rad, yaw_rad)
+            self.odom_pub.publish(self.odom_msg)
 
     def positionWithinSoftLimits(self, yaw_deg, pitch_deg):
         if (yaw_deg < self.min_yaw_softstop_deg) or (yaw_deg > self.max_yaw_softstop_deg) or \

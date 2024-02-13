@@ -27,6 +27,8 @@
 
 #include "nepi_ros_interfaces/PanTiltStatus.h"
 
+#include <tf2/LinearMath/Quaternion.h>
+
 namespace Numurus
 {
 
@@ -64,6 +66,10 @@ PTXInterface::PTXInterface(PTXNode *parent, ros::NodeHandle *parent_pub_nh, ros:
     joint_state.name[0] = default_settings.yaw_joint_name;
     joint_state.name[1] = default_settings.pitch_joint_name;
 
+    // Initialize the odometry message
+    const std::string name = ros::this_node::getName();
+    odometry.header.frame_id = name + "_fixed_frame";
+    odometry.child_frame_id = name + "_rotating_frame";
 }
 
 PTXInterface::~PTXInterface(){}
@@ -99,6 +105,13 @@ void PTXInterface::retrieveParams()
     ptx_caps_query_response.absolute_positioning = has_absolute_positioning;
     ptx_caps_query_response.homing = has_homing;
     ptx_caps_query_response.waypoints = has_waypoints;
+
+    // Joint state and odometry published if and only if this system has absolute positioning (for position feedback)
+    if (ptx_caps_query_response.absolute_positioning == true)
+    {
+        jointPub = _parent_pub_nh->advertise<sensor_msgs::JointState>("/joint_states", 10);
+        odomPub = _parent_priv_nh->advertise<nav_msgs::Odometry>("ptx/odometry", 10);
+    }
 }
 
 void PTXInterface::initSubscribers()
@@ -144,8 +157,6 @@ void PTXInterface::initPublishers()
 {
     SDKInterface::initPublishers();
 
-    //set publisher
-    jointPub = _parent_pub_nh->advertise<sensor_msgs::JointState>("/joint_states", 10);
     statusPub = _parent_priv_nh->advertise<nepi_ros_interfaces::PanTiltStatus>("ptx/status", 10);
 }
 
@@ -176,13 +187,27 @@ void PTXInterface::publishJointStateAndStatus()
     PTXStatus status;
     static_cast<PTXNode*>(_parent_node)->getStatus(status);
   
-    const double yawRad = 0.01745329 * status.yaw_now;
-    const double pitchRad = 0.01745329 * status.pitch_now;
+    if (ptx_caps_query_response.absolute_positioning == true)
+    {
+        const double yawRad = 0.01745329 * status.yaw_now;
+        const double pitchRad = 0.01745329 * status.pitch_now;
 
-    joint_state.header.stamp = ros::Time::now();
-    joint_state.position[0] = yawRad;
-    joint_state.position[1] = pitchRad;
-    jointPub.publish(joint_state);
+        joint_state.header.stamp = ros::Time::now();
+        joint_state.position[0] = yawRad;
+        joint_state.position[1] = pitchRad;
+        jointPub.publish(joint_state);
+
+        odometry.header.stamp = ros::Time::now();
+        odometry.header.seq = status.loop_count;
+        tf2::Quaternion tf2_quat;
+        tf2_quat.setRPY(0.0, pitchRad, yawRad);
+        tf2_quat.normalize();
+        odometry.pose.pose.orientation.x = tf2_quat.getX();
+        odometry.pose.pose.orientation.y = tf2_quat.getY();
+        odometry.pose.pose.orientation.z = tf2_quat.getZ();
+        odometry.pose.pose.orientation.w = tf2_quat.getW();
+        odomPub.publish(odometry);
+    }
 
     nepi_ros_interfaces::PanTiltStatus status_msg;
     status_msg.header.seq = status.loop_count;
