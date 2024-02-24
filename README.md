@@ -24,7 +24,7 @@ Contact Information:
 -->
 # nepi_edge_sdk_ptx #
 
-This repository hosts code and support files related to the NEPI pan/tilt (PTX) interface.
+This repository hosts the NEPI PTX driver and ROS nodes to support autodetection, status, controls, and data streaming for pan and tilt actuator systems with NEPI devices.
 
 ### Build and Install ###
 This repository is typically built as part of the _nepi_base_ws_ catkin workspace. Refer to that project's top-level README for build and install instructions.
