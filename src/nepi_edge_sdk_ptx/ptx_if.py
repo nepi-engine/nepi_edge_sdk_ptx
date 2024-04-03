@@ -58,6 +58,8 @@ class ROSPTXActuatorIF:
         self.joint_state_msg = JointState()
         # Skip the header -- we just copy it from the status message each time
         self.joint_state_msg.name = (self.yaw_joint_name, self.pitch_joint_name)
+        self.joint_state_msg.position.append(0.0) # Yaw
+        self.joint_state_msg.position.append(0.0) # Pitch
 
         # And odom static values
         self.odom_msg = Odometry()
@@ -133,13 +135,13 @@ class ROSPTXActuatorIF:
             self.min_pitch_softstop_deg = rospy.get_param('~ptx/limits/min_pitch_softstop_deg', default_settings['min_pitch_softstop_deg'])
 
             # Jog to position
-            rospy.Subscriber('~ptx/jog_to_position', PanTiltLimits, self.jogToPositionHandler, queue_size=1)
+            rospy.Subscriber('~ptx/jog_to_position', PanTiltPosition, self.jogToPositionHandler, queue_size=1)
 
             # Jog to yaw ratio
-            rospy.Subscriber('~ptx/jog_to_yaw_ratio', PanTiltPosition, self.jogToYawRatioHandler, queue_size=1)
+            rospy.Subscriber('~ptx/jog_to_yaw_ratio', Float32, self.jogToYawRatioHandler, queue_size=1)
 
             # Jog to pitch ratio
-            rospy.Subscriber('~ptx/jog_to_pitch_ratio', PanTiltPosition, self.jogToYawRatioHandler, queue_size=1)
+            rospy.Subscriber('~ptx/jog_to_pitch_ratio', Float32, self.jogToPitchRatioHandler, queue_size=1)
 
             # Joint state publisher
             self.joint_pub = rospy.Publisher('/joint_states', JointState, queue_size=10)
@@ -179,7 +181,7 @@ class ROSPTXActuatorIF:
                 self.capabilities_report.homing = False
                 
         if self.capabilities_report.homing is True:
-            rospy.Subscriber('~ptx/go_home', Empty, self.goHome, queue_size=1)
+            rospy.Subscriber('~ptx/go_home', Empty, self.goHomeHandler, queue_size=1)
             
             if self.setHomePositionCb is not None:
                 rospy.Subscriber('~ptx/set_home_position', PanTiltPosition, self.setHomePositionHandler,  queue_size=1)
@@ -223,7 +225,7 @@ class ROSPTXActuatorIF:
         rospy.Service('~ptx/capabilities_query', PTXCapabilitiesQuery, self.provideCapabilities)
 
     def yawRatioToDeg(self, ratio):
-        return ratio * (self.max_yaw_softstop_deg - self.min_yaw_softstop_deg) + self.min_yaw_softstop_deg
+        return  ratio * (self.max_yaw_softstop_deg - self.min_yaw_softstop_deg) + self.min_yaw_softstop_deg
     
     def yawDegToRatio(self, deg):
         return (deg - self.min_yaw_softstop_deg) / (self.max_yaw_softstop_deg - self.min_yaw_softstop_deg)
